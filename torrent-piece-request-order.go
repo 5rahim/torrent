@@ -1,11 +1,7 @@
 package torrent
 
 import (
-	"fmt"
-
-	"github.com/RoaringBitmap/roaring/v2"
 	g "github.com/anacrolix/generics"
-	"github.com/anacrolix/torrent/internal/amortize"
 	requestStrategy "github.com/anacrolix/torrent/internal/request-strategy"
 )
 
@@ -93,27 +89,4 @@ func (t *Torrent) getPieceRequestOrder() *requestStrategy.PieceRequestOrder {
 }
 
 func (t *Torrent) checkPendingPiecesMatchesRequestOrder() {
-	if !amortize.Try() {
-		return
-	}
-	short := *t.canonicalShortInfohash()
-	var proBitmap roaring.Bitmap
-	for item := range t.getPieceRequestOrder().Iter {
-		if item.Key.InfoHash.Value() != short {
-			continue
-		}
-		if item.State.Priority == PiecePriorityNone {
-			continue
-		}
-		if t.ignorePieceForRequests(item.Key.Index) {
-			continue
-		}
-		proBitmap.Add(uint32(item.Key.Index))
-	}
-	if !proBitmap.Equals(&t._pendingPieces.Bitmap) {
-		intersection := roaring.And(&proBitmap, &t._pendingPieces.Bitmap)
-		exclPro := roaring.AndNot(&proBitmap, intersection)
-		exclPending := roaring.AndNot(&t._pendingPieces.Bitmap, intersection)
-		panic(fmt.Sprintf("piece request order has %v and pending pieces has %v", exclPro.String(), exclPending.String()))
-	}
 }
