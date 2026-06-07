@@ -1,4 +1,4 @@
-module github.com/5rahim/torrent
+module github.com/anacrolix/torrent
 
 go 1.24.0
 
