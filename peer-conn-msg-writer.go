@@ -8,7 +8,6 @@ import (
 	"github.com/anacrolix/chansync"
 	"github.com/anacrolix/log"
 	"github.com/anacrolix/sync"
-
 	pp "github.com/anacrolix/torrent/peer_protocol"
 )
 
@@ -84,6 +83,7 @@ func (cn *peerConnMsgWriter) run(keepAliveTimeout time.Duration) {
 		if cn.closed.IsSet() {
 			return
 		}
+		writeCond := cn.writeCond.Signaled()
 		cn.fillWriteBuffer()
 		keepAlive := cn.keepAlive()
 		cn.mu.Lock()
@@ -92,7 +92,6 @@ func (cn *peerConnMsgWriter) run(keepAliveTimeout time.Duration) {
 			torrent.Add("written keepalives", 1)
 		}
 		if cn.writeBuffer.Len() == 0 {
-			writeCond := cn.writeCond.Signaled()
 			cn.mu.Unlock()
 			select {
 			case <-cn.closed.Done():

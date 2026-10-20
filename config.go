@@ -69,8 +69,8 @@ type ClientConfig struct {
 	DataDir string `long:"data-dir" description:"directory to store downloaded torrent data"`
 	// The address to listen for new uTP and TCP BitTorrent protocol connections. DHT shares a UDP
 	// socket with uTP unless configured otherwise.
-	ListenHost              func(network string) string
-	ListenPort              int
+	ListenHost func(network string) string
+	ListenPort int
 	// cfg.NoDefaultPortForwarding aka cfg.DisableUpnp
 	NoDefaultPortForwarding bool
 	UpnpID                  string
@@ -98,6 +98,9 @@ type ClientConfig struct {
 	DownloadRateLimiter *rate.Limiter
 	// Maximum unverified bytes across all torrents. Not used if zero.
 	MaxUnverifiedBytes int64
+	// CancelUnwantedRequests cancels outstanding peer requests for a piece when its priority drops to
+	// none. Peers then serve wanted pieces without first draining requests for unwanted ones.
+	CancelUnwantedRequests bool
 
 	// User-provided Client peer ID. If not present, one is generated automatically.
 	PeerID string

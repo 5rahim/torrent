@@ -1547,6 +1547,9 @@ func (t *Torrent) maybeNewConns() {
 func (t *Torrent) updatePeerRequestsForPiece(piece pieceIndex, reason updateRequestReason) {
 	if !t._pendingPieces.Contains(piece) {
 		// Non-pending pieces are usually cancelled more synchronously.
+		if t.cl.config.CancelUnwantedRequests {
+			t.cancelRequestsForPiece(piece)
+		}
 		return
 	}
 	for c := range t.conns {

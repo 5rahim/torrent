@@ -120,6 +120,7 @@ const (
 const (
 	peerUpdateRequestsPeerCancelReason   updateRequestReason = "Peer.cancel"
 	peerUpdateRequestsRemoteRejectReason updateRequestReason = "Peer.remoteRejectedRequest"
+	peerUpdateRequestsCancelAckReason    updateRequestReason = "Peer.remoteAcknowledgedCancel"
 )
 
 // Returns the Torrent a Peer belongs to. Shouldn't change for the lifetime of the Peer. May be nil

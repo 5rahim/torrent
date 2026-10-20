@@ -22,20 +22,16 @@ import (
 	"github.com/anacrolix/log"
 	"github.com/anacrolix/missinggo/v2/panicif"
 	"github.com/anacrolix/multiless"
-
-	"golang.org/x/time/rate"
-
-	typedRoaring "github.com/anacrolix/torrent/typed-roaring"
-
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/internal/fast"
 	requestStrategy "github.com/anacrolix/torrent/internal/request-strategy"
-
 	"github.com/anacrolix/torrent/merkle"
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/mse"
 	pp "github.com/anacrolix/torrent/peer_protocol"
 	utHolepunch "github.com/anacrolix/torrent/peer_protocol/ut-holepunch"
+	typedRoaring "github.com/anacrolix/torrent/typed-roaring"
+	"golang.org/x/time/rate"
 )
 
 type PeerStatus struct {
@@ -1849,14 +1845,17 @@ func (cn *PeerConn) onNeedUpdateRequests(reason updateRequestReason) {
 
 // Returns true if it was valid to reject the request.
 func (c *PeerConn) remoteRejectedRequest(r RequestIndex) bool {
+	reason := peerUpdateRequestsRemoteRejectReason
 	if c.deleteRequest(r) {
 		c.decPeakRequests()
-	} else if !c.requestState.Cancelled.CheckedRemove(r) {
+	} else if c.requestState.Cancelled.CheckedRemove(r) {
+		reason = peerUpdateRequestsCancelAckReason
+	} else {
 		// The request was already cancelled.
 		return false
 	}
 	if c.isLowOnRequests() {
-		c.onNeedUpdateRequests(peerUpdateRequestsRemoteRejectReason)
+		c.onNeedUpdateRequests(reason)
 	}
 	c.decExpectedChunkReceive(r)
 	return true
