@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	g "github.com/anacrolix/generics"
+	utp "github.com/anacrolix/go-utp"
 	"github.com/anacrolix/missinggo/v2"
 )
 
@@ -125,16 +126,6 @@ type listenFunc func(n network, addr string, f firewallCallback, logger *slog.Lo
 
 const listenAllRetryLimit = 150
 
-func listenAll(
-	networks []network,
-	getHost func(string) string,
-	port int,
-	f firewallCallback,
-	logger *slog.Logger,
-) ([]socket, error) {
-	return listenAllWithListenFunc(networks, getHost, port, f, logger, listen)
-}
-
 func listenAllWithListenFunc(
 	networks []network,
 	getHost func(string) string,
@@ -223,11 +214,19 @@ func listenAllRetry(
 	return
 }
 
-// This isn't aliased from go-libutp since that assumes CGO.
-type firewallCallback func(net.Addr) bool
+type firewallCallback = utp.FirewallCallback
 
 func listenUtp(network, addr string, fc firewallCallback, logger *slog.Logger) (socket, error) {
 	us, err := NewUtpSocketSlogger(network, addr, fc, logger)
+	return utpSocketSocket{us, network}, err
+}
+
+func listenUtpFromPacketConn(network, addr string, fc firewallCallback, logger *slog.Logger, lp func(network, addr string) (net.PacketConn, error)) (socket, error) {
+	pc, err := lp(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	us, err := NewUtpSocketFromPacketConn(pc, fc, logger)
 	return utpSocketSocket{us, network}, err
 }
 

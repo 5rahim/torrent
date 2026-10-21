@@ -3,6 +3,7 @@ package bencode
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -11,8 +12,7 @@ import (
 	"testing"
 
 	qt "github.com/go-quicktest/qt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/google/go-cmp/cmp"
 )
 
 type random_decode_test struct {
@@ -53,7 +53,9 @@ func TestRandomDecode(t *testing.T) {
 			t.Error(err, test.data)
 			continue
 		}
-		assert.EqualValues(t, test.expected, value)
+		qt.Check(t, qt.CmpEquals(value, test.expected, cmp.Comparer(func(a, b *big.Int) bool {
+			return a.Cmp(b) == 0
+		})))
 	}
 }
 
@@ -61,46 +63,46 @@ func TestLoneE(t *testing.T) {
 	var v int
 	err := Unmarshal([]byte("e"), &v)
 	se := err.(*SyntaxError)
-	require.EqualValues(t, 0, se.Offset)
+	qt.Assert(t, qt.Equals(se.Offset, 0))
 }
 
 func TestDecoderConsecutive(t *testing.T) {
 	d := NewDecoder(bytes.NewReader([]byte("i1ei2e")))
 	var i int
 	err := d.Decode(&i)
-	require.NoError(t, err)
-	require.EqualValues(t, 1, i)
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(i, 1))
 	err = d.Decode(&i)
-	require.NoError(t, err)
-	require.EqualValues(t, 2, i)
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(i, 2))
 	err = d.Decode(&i)
-	require.Equal(t, io.EOF, err)
+	qt.Assert(t, qt.Equals(err, io.EOF))
 }
 
 func TestDecoderConsecutiveDicts(t *testing.T) {
 	bb := bytes.NewBufferString("d4:herp4:derped3:wat1:ke17:oh baby a triple!")
 
 	d := NewDecoder(bb)
-	assert.EqualValues(t, "d4:herp4:derped3:wat1:ke17:oh baby a triple!", bb.Bytes())
-	assert.EqualValues(t, 0, d.Offset)
+	qt.Check(t, qt.Equals(bb.String(), "d4:herp4:derped3:wat1:ke17:oh baby a triple!"))
+	qt.Check(t, qt.Equals(d.Offset, 0))
 
 	var m map[string]interface{}
 
-	require.NoError(t, d.Decode(&m))
-	assert.Len(t, m, 1)
-	assert.Equal(t, "derp", m["herp"])
-	assert.Equal(t, "d3:wat1:ke17:oh baby a triple!", bb.String())
-	assert.EqualValues(t, 14, d.Offset)
+	qt.Assert(t, qt.IsNil(d.Decode(&m)))
+	qt.Check(t, qt.HasLen(m, 1))
+	qt.Check(t, qt.Equals(m["herp"], "derp"))
+	qt.Check(t, qt.Equals(bb.String(), "d3:wat1:ke17:oh baby a triple!"))
+	qt.Check(t, qt.Equals(d.Offset, 14))
 
-	require.NoError(t, d.Decode(&m))
-	assert.Equal(t, "k", m["wat"])
-	assert.Equal(t, "17:oh baby a triple!", bb.String())
-	assert.EqualValues(t, 24, d.Offset)
+	qt.Assert(t, qt.IsNil(d.Decode(&m)))
+	qt.Check(t, qt.Equals(m["wat"], "k"))
+	qt.Check(t, qt.Equals(bb.String(), "17:oh baby a triple!"))
+	qt.Check(t, qt.Equals(d.Offset, 24))
 
 	var s string
-	require.NoError(t, d.Decode(&s))
-	assert.Equal(t, "oh baby a triple!", s)
-	assert.EqualValues(t, 44, d.Offset)
+	qt.Assert(t, qt.IsNil(d.Decode(&s)))
+	qt.Check(t, qt.Equals(s, "oh baby a triple!"))
+	qt.Check(t, qt.Equals(d.Offset, 44))
 }
 
 func check_error(t *testing.T, err error) {
@@ -148,10 +150,10 @@ func TestIgnoreUnmarshalTypeError(t *testing.T) {
 		Ignore int `bencode:",ignore_unmarshal_type_error"`
 		Normal int
 	}{}
-	require.Error(t, Unmarshal([]byte("d6:Normal5:helloe"), &s))
-	assert.NoError(t, Unmarshal([]byte("d6:Ignore5:helloe"), &s))
+	qt.Assert(t, qt.IsNotNil(Unmarshal([]byte("d6:Normal5:helloe"), &s)))
+	qt.Check(t, qt.IsNil(Unmarshal([]byte("d6:Ignore5:helloe"), &s)))
 	qt.Assert(t, qt.IsNil(Unmarshal([]byte("d6:Ignorei42ee"), &s)))
-	assert.EqualValues(t, 42, s.Ignore)
+	qt.Check(t, qt.Equals(s.Ignore, 42))
 }
 
 // Test unmarshalling []byte into something that has the same kind but
@@ -162,22 +164,22 @@ func TestDecodeCustomSlice(t *testing.T) {
 	// We do a longer slice then a shorter slice to see if the buffers are
 	// shared.
 	d := NewDecoder(bytes.NewBufferString("3:\x01\x10\xff2:\x04\x0f"))
-	require.NoError(t, d.Decode(&fs3))
-	require.NoError(t, d.Decode(&fs2))
-	assert.EqualValues(t, []flag{1, 16, 255}, fs3)
-	assert.EqualValues(t, []flag{4, 15}, fs2)
+	qt.Assert(t, qt.IsNil(d.Decode(&fs3)))
+	qt.Assert(t, qt.IsNil(d.Decode(&fs2)))
+	qt.Check(t, qt.DeepEquals(fs3, []flag{1, 16, 255}))
+	qt.Check(t, qt.DeepEquals(fs2, []flag{4, 15}))
 }
 
 func TestUnmarshalUnusedBytes(t *testing.T) {
 	var i int
-	require.EqualValues(t, ErrUnusedTrailingBytes{1}, Unmarshal([]byte("i42ee"), &i))
-	assert.EqualValues(t, 42, i)
+	qt.Assert(t, qt.Equals(Unmarshal([]byte("i42ee"), &i), error(ErrUnusedTrailingBytes{1})))
+	qt.Check(t, qt.Equals(i, 42))
 }
 
 func TestUnmarshalByteArray(t *testing.T) {
 	var ba [2]byte
-	assert.NoError(t, Unmarshal([]byte("2:hi"), &ba))
-	assert.EqualValues(t, "hi", ba[:])
+	qt.Check(t, qt.IsNil(Unmarshal([]byte("2:hi"), &ba)))
+	qt.Check(t, qt.Equals(string(ba[:]), "hi"))
 }
 
 func TestDecodeDictIntoUnsupported(t *testing.T) {
@@ -284,4 +286,124 @@ func TestJsonDecoderBehaviour(t *testing.T) {
 	test("", 0, io.EOF)
 	test("{}", 1, io.EOF)
 	test("{} {", 1, io.ErrUnexpectedEOF)
+}
+
+// deepList returns a bencode list nested n levels deep around the integer 0.
+func deepList(n int) string {
+	return strings.Repeat("l", n) + "i0e" + strings.Repeat("e", n)
+}
+
+// deepDict returns a bencode dict nested n levels deep around the integer 0, with key "a" at each
+// level.
+func deepDict(n int) string {
+	return strings.Repeat("d1:a", n) + "i0e" + strings.Repeat("e", n)
+}
+
+// Ensure that deeply nested dicts and lists are rejected with a SyntaxError instead of recursing
+// unboundedly, and that the Decoder.MaxDepth field overrides the default.
+func TestDecodeMaxDepth(t *testing.T) {
+	decode := func(t *testing.T, input string) error {
+		t.Helper()
+		var d interface{}
+		return Unmarshal([]byte(input), &d)
+	}
+	checkErr := func(t *testing.T, input string, wantErr bool) {
+		t.Helper()
+		err := decode(t, input)
+		if !wantErr {
+			if err != nil {
+				t.Fatalf("expected %d-deep input to decode, got %v", strings.Count(input, "d")+strings.Count(input, "l"), err)
+			}
+			return
+		}
+		var se *SyntaxError
+		if !errors.As(err, &se) {
+			t.Fatalf("expected SyntaxError, got %T: %v", err, err)
+		}
+		qt.Check(t, qt.StringContains(se.Error(), "nesting depth"))
+	}
+	// The default limit allows exactly DefaultMaxDepth levels of nesting.
+	checkErr(t, deepList(DefaultMaxDepth), false)
+	checkErr(t, deepList(DefaultMaxDepth+1), true)
+	checkErr(t, deepDict(DefaultMaxDepth), false)
+	checkErr(t, deepDict(DefaultMaxDepth+1), true)
+	// A custom MaxDepth is honored.
+	for _, depth := range []int{1, 2, 10, 100} {
+		in := deepDict(depth)
+		d := NewDecoder(strings.NewReader(in))
+		d.MaxDepth = depth
+		var v interface{}
+		if err := d.Decode(&v); err != nil {
+			t.Errorf("MaxDepth=%d: expected %d-deep input to decode, got %v", depth, depth, err)
+		}
+		d = NewDecoder(strings.NewReader(deepDict(depth + 1)))
+		d.MaxDepth = depth
+		var se *SyntaxError
+		if err := d.Decode(&v); !errors.As(err, &se) {
+			t.Errorf("MaxDepth=%d: expected SyntaxError for %d-deep input, got %T: %v", depth, depth+1, err, err)
+		}
+	}
+}
+
+// Values routed through the Unmarshaler (readOneValue) path are depth-bounded too, so that e.g.
+// metainfo.InfoBytes cannot carry a stack-overflowing nested value.
+func TestDecodeMaxDepthUnmarshaler(t *testing.T) {
+	decode := func(innerDepth int) error {
+		var m struct {
+			Info Bytes `bencode:"info"`
+		}
+		// The envelope dict adds one nesting level.
+		return Unmarshal([]byte("d4:info"+deepList(innerDepth)+"e"), &m)
+	}
+	if err := decode(DefaultMaxDepth - 1); err != nil {
+		t.Fatalf("expected info nested %d levels deep to decode, got %v", DefaultMaxDepth-1, err)
+	}
+	var se *SyntaxError
+	if err := decode(DefaultMaxDepth); !errors.As(err, &se) {
+		t.Fatalf("expected SyntaxError for info nested %d levels deep, got %T: %v", DefaultMaxDepth, err, err)
+	}
+}
+
+// The depth counter stays balanced across Decodes and across the panic used to surface a depth
+// error: the same Decoder can be reused, as TestDecoderConsecutive does, and must not inherit any
+// leftover depth.
+func TestDecodeMaxDepthConsecutive(t *testing.T) {
+	// Two max-depth values back to back: if depth leaked out of the first Decode, the second would
+	// fail.
+	d := NewDecoder(bytes.NewBufferString(deepDict(DefaultMaxDepth) + deepList(DefaultMaxDepth)))
+	var v1 interface{}
+	qt.Assert(t, qt.IsNil(d.Decode(&v1)))
+	var v2 interface{}
+	qt.Assert(t, qt.IsNil(d.Decode(&v2)))
+	// A depth error must unwind the counter too: after rejecting one too-deep value, the same
+	// Decoder must still accept a value at the limit.
+	d.r = strings.NewReader(deepDict(DefaultMaxDepth + 1))
+	var v3 interface{}
+	var se *SyntaxError
+	qt.Assert(t, qt.ErrorAs(d.Decode(&v3), &se))
+	d.r = strings.NewReader(deepDict(DefaultMaxDepth))
+	var v4 interface{}
+	qt.Assert(t, qt.IsNil(d.Decode(&v4)), qt.Commentf("depth counter leaked out of the failed Decode"))
+}
+
+// The readOneValue path (values decoded for Unmarshaler fields) must apply Decoder.MaxStrLen too,
+// otherwise oversized bulk fields bypass the limit entirely.
+func TestDecodeMaxStrLenUnmarshaler(t *testing.T) {
+	in := "d1:b10:abcdefghije" // key "b" -> 10-byte string
+	decode := func(maxStrLen MaxStrLen) error {
+		d := NewDecoder(strings.NewReader(in))
+		d.MaxStrLen = maxStrLen
+		var m struct {
+			B Bytes `bencode:"b"`
+		}
+		return d.Decode(&m)
+	}
+	if err := decode(10); err != nil {
+		t.Fatalf("expected 10-byte string at limit 10 to decode, got %v", err)
+	}
+	var se *SyntaxError
+	if err := decode(9); !errors.As(err, &se) {
+		t.Fatalf("expected SyntaxError for 10-byte string at limit 9, got %T: %v", err, err)
+	}
+	qt.Check(t, qt.StringContains(se.Error(), "exceeds limit"))
 }

@@ -13,6 +13,7 @@ import (
 	g "github.com/anacrolix/generics"
 	"github.com/anacrolix/missinggo/v2/panicif"
 
+	"github.com/anacrolix/torrent/internal/zeroio"
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/segments"
 )
@@ -158,7 +159,7 @@ func (me *filePieceImpl) markIncompletePieces(file *file, size int64) {
 			InfoHash: me.t.infoHash,
 			Index:    p,
 		}
-		err := me.pieceCompletion().Set(key, false)
+		err := me.pieceCompletion().Set(key, g.Some(false))
 		if err != nil {
 			me.logger().Error("error marking piece not complete", "piece", p, "err", err)
 			return
@@ -167,7 +168,7 @@ func (me *filePieceImpl) markIncompletePieces(file *file, size int64) {
 }
 
 func (me *filePieceImpl) MarkComplete() (err error) {
-	err = me.pieceCompletion().Set(me.pieceKey(), true)
+	err = me.pieceCompletion().Set(me.pieceKey(), g.Some(true))
 	if err != nil {
 		return
 	}
@@ -221,7 +222,7 @@ func (me *filePieceImpl) allFilePiecesComplete(f file) (ret g.Result[bool]) {
 }
 
 func (me *filePieceImpl) MarkNotComplete() (err error) {
-	err = me.pieceCompletion().Set(me.pieceKey(), false)
+	err = me.pieceCompletion().Set(me.pieceKey(), g.Some(false))
 	if err != nil {
 		return
 	}
@@ -237,14 +238,14 @@ func (me *filePieceImpl) MarkNotComplete() (err error) {
 }
 
 func (me *filePieceImpl) promotePartFile(f file) (err error) {
-	// Flush file on completion, even if we don't promote it.
+	if !me.partFiles() {
+		return nil
+	}
+	// Flush the part file before promotion so its contents are durable.
 	err = me.t.io.flush(f.partFilePath(), 0, f.length())
 	if err != nil {
 		me.logger().Warn("error flushing file before promotion", "file", f.partFilePath(), "err", err)
 		err = nil
-	}
-	if !me.partFiles() {
-		return nil
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -367,7 +368,7 @@ func (me *filePieceImpl) writeFileTo(w io.Writer, fileIndex int, extent segments
 		// Write zeroes until the end of the hole we're in.
 		var n1 int64
 		n := min(dataOffset-extent.Start, extent.Length)
-		n1, err = writeZeroes(w, n)
+		n1, err = zeroio.WriteZeroes(w, n)
 		packageExpvarMap.Add("bytesReadSkippedHole", n1)
 		written += n1
 		if err != nil {

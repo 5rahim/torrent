@@ -8,7 +8,7 @@ There is support for [protocol encryption, DHT, PEX, uTP, WebTorrent, WebSeeds, 
 
 Some noteworthy package dependencies that can be used for other purposes include:
 
- * [go-libutp](https://github.com/anacrolix/go-libutp)
+ * [go-utp](https://github.com/anacrolix/go-utp)
  * [dht](https://github.com/anacrolix/dht)
  * [bencode](https://pkg.go.dev/github.com/anacrolix/torrent/bencode)
  * [tracker](https://pkg.go.dev/github.com/anacrolix/torrent/tracker)
@@ -19,11 +19,41 @@ See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes by version.
 
 ## Installation
 
-Install the library package with `go get github.com/anacrolix/torrent`, or the provided cmds with `go install github.com/anacrolix/torrent/cmd/...@latest`.
+Install the library package with `go get github.com/anacrolix/torrent`, or the provided cmds with `go install github.com/anacrolix/torrent/cmd/...@latest`. Installing by import path like this runs in Go's module-aware mode and ignores the repository's `go.work` file, so it works without checking out any git submodules.
+
+## Building from a checkout
+
+The repository includes a Go workspace (`go.work`) that adds the [`possum`](https://github.com/anacrolix/possum) storage backend. `possum` is vendored as a git submodule at `storage/possum/lib`, and the workspace references the Go module inside it (`storage/possum/lib/go`). Building from a clone of this repository (for example `go build ./...`) therefore requires the submodule to be checked out, otherwise Go fails with an error like:
+
+    cannot load module storage/possum/lib/go listed in go.work file: open storage/possum/lib/go/go.mod: no such file or directory
+
+Check out the submodules when cloning:
+
+    git clone --recurse-submodules https://github.com/anacrolix/torrent
+
+or, in an existing clone:
+
+    git submodule update --init --recursive
+
+Alternatively, disable the workspace by setting `GOWORK=off`, though the `possum` storage backend won't be available in that case.
 
 ## Library examples
 
 There are some small [examples](https://pkg.go.dev/github.com/anacrolix/torrent#pkg-examples) in the package documentation.
+
+### Routing peer connections through a SOCKS5 proxy
+
+To dial peers through a SOCKS5 proxy, add the [dialer.Socks5](https://pkg.go.dev/github.com/anacrolix/torrent/dialer#NewSocks5) dialer to the client. Start from the default config and set `DialForPeerConns` to false so the SOCKS5 dialer is the only one used for outgoing peer connections:
+
+```go
+cfg := torrent.NewDefaultClientConfig()
+cfg.DialForPeerConns = false
+cl, _ := torrent.NewClient(cfg)
+cl.AddDialer(dialer.NewSocks5("localhost:1080", nil))
+```
+
+The proxy is used for outgoing peer connections; listening for incoming
+connections is unaffected.
 
 ## Mentions
 

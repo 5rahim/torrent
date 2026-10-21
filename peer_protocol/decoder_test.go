@@ -4,12 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"sync"
 	"testing"
 
-	qt "github.com/go-quicktest/qt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/go-quicktest/qt"
+
+	chunkpool "github.com/anacrolix/torrent/internal/chunk-pool"
 )
 
 func BenchmarkDecodePieces(t *testing.B) {
@@ -28,12 +27,7 @@ func BenchmarkDecodePieces(t *testing.B) {
 	d := Decoder{
 		R:         bufio.NewReaderSize(&r, 1<<10),
 		MaxLength: 1 << 18,
-		Pool: &sync.Pool{
-			New: func() interface{} {
-				b := make([]byte, pieceLen)
-				return &b
-			},
-		},
+		Pool:      chunkpool.New(pieceLen),
 	}
 	t.ReportAllocs()
 	t.ResetTimer()
@@ -48,8 +42,8 @@ func BenchmarkDecodePieces(t *testing.B) {
 		if false {
 			qt.Assert(t, qt.DeepEquals(msg, inputMsg))
 		}
-		// WWJD
-		d.Pool.Put(&msg.Piece)
+		// Recycle via the pooled pointer the decoder handed back, avoiding a slice-header alloc.
+		d.Pool.Put(msg.PiecePtr)
 	}
 }
 
@@ -62,15 +56,12 @@ func TestDecodeShortPieceEOF(t *testing.T) {
 	d := Decoder{
 		R:         bufio.NewReader(r),
 		MaxLength: 1 << 15,
-		Pool: &sync.Pool{New: func() interface{} {
-			b := make([]byte, 2)
-			return &b
-		}},
+		Pool:      chunkpool.New(2),
 	}
 	var m Message
-	require.NoError(t, d.Decode(&m))
-	assert.Len(t, m.Piece, 1)
-	assert.ErrorIs(t, d.Decode(&m), io.EOF)
+	qt.Assert(t, qt.IsNil(d.Decode(&m)))
+	qt.Check(t, qt.HasLen(m.Piece, 1))
+	qt.Check(t, qt.ErrorIs(d.Decode(&m), io.EOF))
 }
 
 func TestDecodeOverlongPiece(t *testing.T) {
@@ -82,11 +73,8 @@ func TestDecodeOverlongPiece(t *testing.T) {
 	d := Decoder{
 		R:         bufio.NewReader(r),
 		MaxLength: 1 << 15,
-		Pool: &sync.Pool{New: func() interface{} {
-			b := make([]byte, 2)
-			return &b
-		}},
+		Pool:      chunkpool.New(2),
 	}
 	var m Message
-	require.Error(t, d.Decode(&m))
+	qt.Assert(t, qt.IsNotNil(d.Decode(&m)))
 }

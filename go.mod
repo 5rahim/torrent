@@ -1,6 +1,6 @@
 module github.com/anacrolix/torrent
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/RoaringBitmap/roaring/v2 v2.16.0
@@ -8,22 +8,21 @@ require (
 	github.com/anacrolix/bargle v1.0.0
 	github.com/anacrolix/bargle/v2 v2.0.0
 	github.com/anacrolix/btree v0.1.1
-	github.com/anacrolix/chansync v0.7.0
+	github.com/anacrolix/chansync v0.8.0
 	github.com/anacrolix/dht/v2 v2.23.1-0.20260525063928-ec3a9bd99456
 	github.com/anacrolix/envpprof v1.4.0
 	github.com/anacrolix/generics v0.2.0
-	github.com/anacrolix/go-libutp v1.3.2
+	github.com/anacrolix/go-utp v0.0.0-20260908033909-9f1664acf866
 	github.com/anacrolix/gostdapp v0.2.1-0.20251125125325-fbac3f25c013
 	github.com/anacrolix/log v0.17.1-0.20251118025802-918f1157b7bb
 	github.com/anacrolix/missinggo v1.3.0
-	github.com/anacrolix/missinggo/v2 v2.10.0
+	github.com/anacrolix/missinggo/v2 v2.11.0
 	github.com/anacrolix/multiless v0.4.0
 	github.com/anacrolix/possum/go v0.4.1-0.20250821022006-9d91a37b5d3d
 	github.com/anacrolix/squirrel v0.6.4
 	github.com/anacrolix/sync v0.5.5-0.20251119100342-d78dd1f686f1
 	github.com/anacrolix/tagflag v1.3.0
 	github.com/anacrolix/upnp v0.1.4
-	github.com/anacrolix/utp v0.1.0
 	github.com/bahlo/generic-list-go v0.2.0
 	github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8
 	github.com/cespare/xxhash v1.1.0
@@ -33,7 +32,7 @@ require (
 	github.com/elliotchance/orderedmap v1.4.0
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/go-llsqlite/adapter v0.0.0-20230927005056-7f5ce7f0c916
-	github.com/go-quicktest/qt v1.101.0
+	github.com/go-quicktest/qt v1.102.0
 	github.com/google/btree v1.1.2
 	github.com/google/go-cmp v0.7.0
 	github.com/gorilla/websocket v1.5.0
@@ -45,7 +44,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.2
 	github.com/protolambda/ctxlock v0.1.0
-	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/btree v1.8.1
 	go.etcd.io/bbolt v1.3.6
 	go.opentelemetry.io/otel v1.38.0
@@ -62,6 +60,7 @@ require (
 	github.com/alecthomas/atomic v0.1.0-alpha2 // indirect
 	github.com/alexflint/go-scalar v1.1.0 // indirect
 	github.com/anacrolix/backtrace v0.0.0-20221205112523-22a61db8f82e // indirect
+	github.com/anacrolix/go-libutp v1.5.2-0.20260908013213-836dd42cdde6 // indirect
 	github.com/anacrolix/lsan v0.1.0 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
 	github.com/anacrolix/mmsg v1.0.1 // indirect
@@ -106,7 +105,6 @@ require (
 	github.com/pion/stun/v3 v3.0.0 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.0 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.35.0 // indirect
@@ -149,7 +147,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846 // indirect
 	google.golang.org/grpc v1.77.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.6 // indirect
 	modernc.org/libc v1.22.3 // indirect
 	modernc.org/mathutil v1.5.0 // indirect

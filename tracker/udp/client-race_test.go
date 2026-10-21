@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/go-quicktest/qt"
 )
 
 // Reproduces the data race reported in
@@ -24,7 +24,7 @@ import (
 func TestRaceConcurrentAnnounceErrorResponse(t *testing.T) {
 	t.Parallel()
 	srv, err := net.ListenPacket("udp", "127.0.0.1:0")
-	require.NoError(t, err)
+	qt.Assert(t, qt.IsNil(err))
 	defer srv.Close()
 
 	go func() {
@@ -60,7 +60,7 @@ func TestRaceConcurrentAnnounceErrorResponse(t *testing.T) {
 		Network: "udp",
 		Host:    srv.LocalAddr().String(),
 	})
-	require.NoError(t, err)
+	qt.Assert(t, qt.IsNil(err))
 	defer cc.Close()
 
 	// Force every request to attempt a fresh connect, maximising pressure on cl.connIdIssued.

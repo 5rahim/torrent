@@ -439,14 +439,16 @@ func (me *regularTrackerAnnounceDispatcher) step() mytimer.TimeValue {
 	return me.nextTimerDelay()
 }
 
-func (me *regularTrackerAnnounceDispatcher) addKey(key torrentTrackerAnnouncerKey) {
+func (me *regularTrackerAnnounceDispatcher) addKey(key torrentTrackerAnnouncerKey) bool {
 	if me.announceData.ContainsKey(key) {
-		return
+		return true
 	}
 	t := me.torrentFromShortInfohash(key.ShortInfohash)
 	if t == nil {
-		// Crude, but the torrent was already dropped. We probably called AddTrackers late.
-		return
+		// Crude, but the torrent was already dropped. We probably called AddTrackers late. The
+		// caller must not record the key in that case, or updateTorrentInput will panic on the
+		// missing announceData entry.
+		return false
 	}
 	g.MakeMapIfNil(&me.torrentForAnnounceRequests)
 	// This can be duplicated when there's multiple trackers for a short infohash. That's fine.
@@ -462,6 +464,7 @@ func (me *regularTrackerAnnounceDispatcher) addKey(key torrentTrackerAnnouncerKe
 		infohashActive:         g.OptionFromTuple(me.infohashAnnouncing.Get(key.ShortInfohash)).Value.count,
 	})
 	me.updateTimer()
+	return true
 }
 
 // Returns nil if the torrent was dropped.
@@ -647,7 +650,10 @@ func (me *regularTrackerAnnounceDispatcher) singleAnnounce(
 	me.updateAnnounceState(key, func(state *announceState) {
 		state.Err = err
 		state.lastAttemptCompleted = now
-		if err == nil {
+		if err != nil {
+			state.consecutiveFailures++
+		} else {
+			state.consecutiveFailures = 0
 			state.lastOk = lastAnnounceOk{
 				AnnouncedEvent: req.Event,
 				Interval:       time.Duration(resp.Interval) * time.Second,
@@ -830,7 +836,8 @@ func (me *regularTrackerAnnounceDispatcher) nextAnnounceEvent(key torrentTracker
 		if state.Err == nil || when.IsZero() {
 			return
 		}
-		minWhen := state.lastAttemptCompleted.Add(time.Minute)
+		minWhen := state.lastAttemptCompleted.Add(
+			me.torrentClient.config.failedAnnounceInterval(state.consecutiveFailures))
 		if when.Before(minWhen) {
 			when = minWhen
 		}
@@ -857,6 +864,8 @@ type announceState struct {
 	lastOk               lastAnnounceOk
 	Err                  error
 	lastAttemptCompleted time.Time
+	// Announces that failed in a row, for the retry interval. Reset by the next one that works.
+	consecutiveFailures int
 	// Has ever sent completed event. Should only be sent once.
 	sentCompleted bool
 }
@@ -961,5 +970,10 @@ func (me *regularTrackerAnnounceDispatcher) getTorrentForAnnounceRequest(ih shor
 }
 
 func (me *regularTrackerAnnounceDispatcher) pendTorrentInputUpdate(t *Torrent) {
+	// With trackers disabled there is nothing to announce, and the dispatcher timer can never
+	// run again, so a pending update would retain the torrent indefinitely.
+	if t.cl.config.DisableTrackers {
+		return
+	}
 	me.pendingTorrentInputUpdates[t] = struct{}{}
 }
