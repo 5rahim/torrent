@@ -466,11 +466,23 @@ func (me *regularTrackerAnnounceDispatcher) step() mytimer.TimeValue {
 	return me.nextTimerDelay()
 }
 
+// resetAnnounceState clears announce history for key. A Torrent starts a new announce session.
+func (me *regularTrackerAnnounceDispatcher) resetAnnounceState(key torrentTrackerAnnouncerKey) {
+	if state, ok := me.announceStates[key]; ok {
+		*state = announceState{}
+	}
+}
+
 func (me *regularTrackerAnnounceDispatcher) addKey(key torrentTrackerAnnouncerKey) bool {
+	t := me.torrentFromShortInfohash(key.ShortInfohash)
 	if me.announceData.ContainsKey(key) {
+		if t != nil {
+			// A re-added Torrent replaces the dropped one that still has announce data.
+			g.MakeMapIfNil(&me.torrentForAnnounceRequests)
+			me.torrentForAnnounceRequests[key.ShortInfohash] = weak.Make(t)
+		}
 		return true
 	}
-	t := me.torrentFromShortInfohash(key.ShortInfohash)
 	if t == nil {
 		// Crude, but the torrent was already dropped. We probably called AddTrackers late. The
 		// caller must not record the key in that case, or updateTorrentInput will panic on the
@@ -596,10 +608,11 @@ func (me *regularTrackerAnnounceDispatcher) syncAnnounceState(key torrentTracker
 }
 
 func (me *regularTrackerAnnounceDispatcher) updateTorrentInput(t *Torrent) {
-	input := me.makeTorrentInput(t)
 	for key := range t.regularTrackerAnnounceState {
 		panicif.Zero(key.url)
 		panicif.Zero(key.ShortInfohash)
+		// A dropped Torrent shares keys with a re-added Torrent of the same infohash.
+		input := me.makeTorrentInput(me.torrentFromShortInfohash(key.ShortInfohash))
 		// Avoid clobbering derived and unrelated values (overdue and active).
 		res := me.announceData.Update(
 			key,
@@ -875,7 +888,7 @@ func (me *regularTrackerAnnounceDispatcher) nextAnnounceEvent(key torrentTracker
 	if !state.sentCompleted && t.sawInitiallyIncompleteData && t.haveAllPieces() {
 		return tracker.Completed, time.Now()
 	}
-	if lastOk.Completed.IsZero() {
+	if lastOk.Completed.IsZero() || lastOk.AnnouncedEvent == tracker.Stopped {
 		// Returning now should be fine as sorting should occur on "overdue" derived value.
 		return tracker.Started, time.Now()
 	}
