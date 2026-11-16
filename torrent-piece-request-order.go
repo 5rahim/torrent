@@ -1,6 +1,9 @@
 package torrent
 
 import (
+	"fmt"
+
+	"github.com/RoaringBitmap/roaring/v2"
 	g "github.com/anacrolix/generics"
 	requestStrategy "github.com/anacrolix/torrent/internal/request-strategy"
 )
@@ -42,7 +45,11 @@ func (t *Torrent) deletePieceRequestOrder() {
 	}
 	cpro := t.cl.pieceRequestOrder
 	key := t.clientPieceRequestOrderKey()
-	pro := cpro[key]
+	pro, ok := cpro[key]
+	if !ok {
+		// Setting the info failed after the storage was opened.
+		return
+	}
 	for i := range t.numPieces() {
 		pro.pieces.Delete(t.pieceRequestOrderKey(i))
 	}
@@ -91,4 +98,47 @@ func (t *Torrent) getPieceRequestOrder() *requestStrategy.PieceRequestOrder {
 }
 
 func (t *Torrent) checkPendingPiecesMatchesRequestOrder() {
+}
+
+// Panics if the pending pieces aren't the pieces wanted from the piece request order.
+func (t *Torrent) assertPendingPiecesMatchRequestOrder() {
+	if t.dataDownloadDisallowed.IsSet() {
+		// Pending pieces are tracked by priority, but dataDownloadDisallowed makes
+		// ignorePieceForRequests true for all of them, so they're dropped from the request
+		// order while staying pending. The two legitimately diverge here.
+		return
+	}
+	pro := t.getPieceRequestOrder()
+	if pro == nil {
+		// Not set up yet: v2 piece layers are applied while the info is still being set.
+		return
+	}
+	short := *t.canonicalShortInfohash()
+	var proBitmap roaring.Bitmap
+	for item := range pro.Iter {
+		if item.Key.InfoHash.Value() != short {
+			continue
+		}
+		if item.State.Priority == PiecePriorityNone {
+			continue
+		}
+		if t.ignorePieceForRequests(item.Key.Index) {
+			continue
+		}
+		proBitmap.Add(uint32(item.Key.Index))
+	}
+	// Pieces without a hash stay pending so their v2 hashes are fetched, but can't be requested.
+	pending := t._pendingPieces.Clone()
+	t._pendingPieces.Iterate(func(i pieceIndex) bool {
+		if !t.piece(i).haveHash() {
+			pending.Remove(i)
+		}
+		return true
+	})
+	if !proBitmap.Equals(&pending.Bitmap) {
+		intersection := roaring.And(&proBitmap, &pending.Bitmap)
+		exclPro := roaring.AndNot(&proBitmap, intersection)
+		exclPending := roaring.AndNot(&pending.Bitmap, intersection)
+		panic(fmt.Sprintf("piece request order has %v and pending pieces has %v", exclPro.String(), exclPending.String()))
+	}
 }
